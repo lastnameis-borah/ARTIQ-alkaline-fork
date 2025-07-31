@@ -4,69 +4,41 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "artiq"
-version = "9.0.0"  # Use a placeholder version
+version = "0.0"  # This will be overridden by versioneer
 description = "A leading-edge control system for quantum information experiments"
 readme = "README.md"
 license = {text = "LGPLv3"}
 authors = [
-    {name = "M-Labs", email = "m-labs@m-labs.hk"},
-]
-classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Environment :: Console",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Topic :: Scientific/Engineering",
-    "Topic :: System :: Hardware",
+    {name = "M-Labs", email = "artiq@lists.m-labs.hk"},
 ]
 dependencies = [
     "numpy",
     "scipy",
     "python-dateutil",
     "prettytable",
-    "pyserial",
-    "levenshtein",
     "h5py",
-    "tqdm",
     "lmdb",
-    "jsonschema",
-    "platformdirs",
+    "qasync",
+    "pyqtgraph",
+    "pygit2",
     "llvmlite",
     "pythonparser",
+    "levenshtein",
+    "platformdirs",
+    "pandas>=2.3.1",
+    "matplotlib>=3.10.3",
+    "seaborn>=0.13.2",
+    "torch>=2.7.1",
 ]
-
-# For development
+[project.optional-dependencies]
 dev = [
     "pytest",
     "coverage",
-    "flake8",
 ]
-
 [project.urls]
 Homepage = "https://m-labs.hk/artiq"
 Documentation = "https://m-labs.hk/artiq/manual/"
 Repository = "https://github.com/m-labs/artiq"
 Issues = "https://github.com/m-labs/artiq/issues"
-
 [tool.setuptools]
 packages = ["artiq"]
-
-[tool.setuptools.package-data]
-artiq = [
-    "gateware/*.v",
-    "gateware/*.ys",
-    "coredevice/*.db",
-    "coredevice/*.py",
-    "test/*.py",
-    "test/lit/*.py",
-    "test/lit/*.cpp",
-    "test/lit/*.ll",
-    "frontend/*.py",
-]

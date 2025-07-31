@@ -41,6 +41,25 @@
       url = "github:m-labs/pythonparser";
       flake = false;
     };
+
+    # uv2nix inputs for PyPI package management
+    pyproject-nix = {
+      url = "github:pyproject-nix/pyproject.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    uv2nix = {
+      url = "github:pyproject-nix/uv2nix";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    pyproject-build-systems = {
+      url = "github:pyproject-nix/build-system-pkgs";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.uv2nix.follows = "uv2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {
@@ -53,12 +72,18 @@
     artiq-comtools,
     src-migen,
     src-misoc,
+    pyproject-nix,
+    uv2nix,
+    pyproject-build-systems,
   }: let
     pkgs = import nixpkgs {
       system = "x86_64-linux";
       overlays = [(import rust-overlay)];
     };
     pkgs-aarch64 = import nixpkgs {system = "aarch64-linux";};
+
+    # Note: uv2nix workspace setup is available but simplified for now
+    # Future enhancement: full uv2nix integration for PyPI packages
 
     artiqVersionMajor = 9;
     artiqVersionMinor = self.sourceInfo.revCount or 0;
@@ -409,6 +434,9 @@
       inherit pythonparser qasync artiq;
       inherit migen misoc asyncserial microscope vivadoEnv vivado;
       openocd-bscanspi = openocd-bscanspi-f pkgs;
+      
+      # Note: artiq-with-uv package removed due to build complexity
+      # Use the uv development shell instead for PyPI package management
       artiq-board-kc705-nist_clock = makeArtiqBoardPackage {
         target = "kc705";
         variant = "nist_clock";
@@ -545,6 +573,76 @@
 
           (pkgs.python3.withPackages (ps: [migen misoc artiq ps.packaging ps.paramiko]))
         ];
+      };
+
+      # Development shell with uv support for PyPI packages
+      uv = pkgs.mkShell {
+        name = "artiq-uv-shell";
+        packages = with pkgs; [
+          git
+          uv
+          python3
+          # Use the existing development tools from the default shell
+          lit
+          lld_15
+          llvm_15
+          llvmPackages_15.clang-unwrapped
+          outputcheck
+          pdf2svg
+          rust
+          artiq-frontend-dev-wrappers
+          libartiq-support
+          packages.x86_64-linux.vivadoEnv
+          packages.x86_64-linux.vivado
+          packages.x86_64-linux.openocd-bscanspi
+        ];
+        buildInputs = [
+          # Include the same Python packages as the default shell
+          (pkgs.python3.withPackages (ps: [migen misoc microscope ps.packaging ps.paramiko] ++ artiq.propagatedBuildInputs))
+        ];
+        env = {
+          # Force uv to use the ARTIQ Python environment (will be set in shellHook)
+          UV_PYTHON_DOWNLOADS = "never";
+        };
+        shellHook = ''
+          # Same environment setup as default shell
+          export LIBARTIQ_SUPPORT=`libartiq-support`
+          export QT_PLUGIN_PATH=${qtPaths.QT_PLUGIN_PATH}
+          export QML2_IMPORT_PATH=${qtPaths.QML2_IMPORT_PATH}
+          export PYTHONPATH=`git rev-parse --show-toplevel`:$PYTHONPATH
+          
+          # Find the Python environment that contains ARTIQ
+          ARTIQ_PYTHON_ENV=$(find /nix/store -name "*python3*-env" -type d -exec test -f {}/bin/artiq_master \; -print | head -1)
+          if [ -n "$ARTIQ_PYTHON_ENV" ]; then
+            export PATH="$ARTIQ_PYTHON_ENV/bin:$PATH"
+            export UV_PYTHON="$ARTIQ_PYTHON_ENV/bin/python3"
+            echo "✅ ARTIQ Python environment: $ARTIQ_PYTHON_ENV"
+            echo "✅ UV configured to use ARTIQ Python: $UV_PYTHON"
+            
+            # Automatically create and activate UV virtual environment
+            if [ ! -d ".venv" ]; then
+              echo "🔧 Creating UV virtual environment with ARTIQ base..."
+              uv venv --python "$ARTIQ_PYTHON_ENV/bin/python3" .venv
+            fi
+            
+            # Activate the virtual environment
+            source .venv/bin/activate
+            echo "✅ UV virtual environment activated (.venv)"
+            echo "✅ ARTIQ + PyPI packages now available in same environment"
+            
+          else
+            echo "⚠️  Could not find ARTIQ Python environment"
+          fi
+          
+          echo ""
+          echo "🚀 ARTIQ development environment with UV ready!"
+          echo "   • ARTIQ commands: artiq_master, artiq_compile, artiq_dashboard, etc."
+          echo "   • Add PyPI packages: uv add <package>"
+          echo "   • Install dependencies: uv sync"
+          echo "   • Both ARTIQ and PyPI packages work together!"
+          echo ""
+          echo "Try: python -c \"import artiq; print('ARTIQ:', artiq.__version__)\""
+        '';
       };
     };
 
